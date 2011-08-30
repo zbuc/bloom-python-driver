@@ -19,7 +19,7 @@ setup(name='pybloomd',
       url="https://github.com/kiip/pybloomd/",
       license="MIT License",
       keywords=["bloom", "filter","client","bloomd"],
-      py_modules=['pybloomd'],
+      py_modules=['pybloom'],
       classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
