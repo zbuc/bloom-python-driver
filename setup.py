@@ -8,15 +8,15 @@ except:
     readme_content = ""
 
 # Create the actual setup method
-setup(name='pybloomd',
+setup(name='pybloom',
       version=pybloomd.__version__,
       description='Client library to interface with multiple bloomd servers',
       long_description=readme_content,
       author='Armon Dadgar',
-      author_email='armon@kiip.me',
+      author_email='biz@kiip.me',
       maintainer='Armon Dadgar',
-      maintainer_email='armon@kiip.me',
-      url="https://github.com/kiip/pybloomd/",
+      maintainer_email='biz@kiip.me',
+      url="https://github.com/kiip/bloom-python-driver/",
       license="MIT License",
       keywords=["bloom", "filter","client","bloomd"],
       py_modules=['pybloom'],
