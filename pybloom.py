@@ -36,7 +36,7 @@ class BloomdConnection(object):
         self.sock = self._create_socket()
         self.fh = None
         self.attempts = attempts
-        self.logger = logging.getLogger("pybloomd.BloomdConnection.%s.%d" % self.server)
+        self.logger = logging.getLogger("pybloom.BloomdConnection.%s.%d" % self.server)
 
     def _create_socket(self):
         "Creates a new socket, tries to connect to the server"
