@@ -8,11 +8,13 @@ and automatically handles collection discovery and sharding.
 Features
 --------
 
- * Provides a simple API for using bloomd
- * Allows for using multiple bloomd servers
-    - Auto-discovers collection locations
-    - Balance the creation of new collections
-    - Explicitly name the location to make collections
+
+* Provides a simple API for using bloomd
+* Allows for using multiple bloomd servers
+   - Auto-discovers collection locations
+   - Balance the creation of new collections
+   - Explicitly name the location to make collections
+
 
 Install
 -------
