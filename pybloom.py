@@ -208,7 +208,7 @@ class BloomdClient(object):
             serv = counts[0][1]
             return self._server_connection(serv)
 
-    def create_collection(self, name, size=None, prob=None, server=None):
+    def create_collection(self, name, capacity=None, prob=None, server=None):
         """
         Creates a new collection on the BloomD server and returns a BloomdCollection
         to interface with it. This may raise a BloomdError if the collection already
@@ -216,17 +216,17 @@ class BloomdClient(object):
 
         :Parameters:
             - name : The name of the new collection
-            - size (optional) : The initial size of the collection in bytes
+            - capacity (optional) : The initial capacity of the collection
             - prob (optional) : The inital probability of false positives. If this is
                     provided, then size must also be provided. This is a bloomd limitation.
             - server (optional) : In a multi-server environment, this forces the
                     collection to be created on a specific server. Should be provided
                     in the same format as initialization "host" or "host:port".
         """
-        if prob and not size: raise ValueError, "Must provide size with probability!"
+        if prob and not capacity: raise ValueError, "Must provide size with probability!"
         conn = self._get_connection(name, strict=False, explicit_server=server)
         cmd = "create %s" % name
-        if size: cmd += " %d" % size
+        if capacity: cmd += " %d" % capacity
         if prob: cmd += " %f" % prob
         conn.send(cmd)
         resp = conn.read()
