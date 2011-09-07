@@ -342,12 +342,52 @@ class BloomdFilter(object):
         self.conn = conn
         self.name = name
 
-    def add(self, key):
-        "Adds a new key to the filter. Returns True/False if the key was added."
+    def add(self, key, udp=False):
+        """
+        Adds a new key to the filter. Returns True/False if the key was added.
+        If UDP is True, then we will just send the set command using UDP and not
+        wait for the response. It also means that we will always return True since
+        we do not have an acknowledgement from the server
+        """
+        if udp:
+            self.conn.udp_send(["set %s %s" % (self.name, key)])
+            return True
+
         resp = self.conn.send_and_receive("set %s %s" % (self.name, key))
         if resp in ("Yes","No"):
             return resp == "Yes"
         raise BloomdError, "Got response: %s" % resp
+
+    def add_all(self, keys, udp=False):
+        """
+        Adds multiple keys to the filter. Returns a dictionary which maps
+        each key onto True/False if the key was added (None is used for exceptions).
+        If UDP is True, we will just send the commands using UDP and not wait for the response.
+        It also means that all keys will return True as having been added.
+        """
+        cmd_base = ("set %s" % self.name) + " %s"
+        cmds = [cmd_base % key for key in keys]
+
+        # Send all the sets, and pretend they all worked...
+        if udp:
+            self.conn.udp_send(cmds)
+            return dict([(key,True) for key in keys])
+
+        # Send all the sets first
+        for cmd in cmds:
+            self.conn.send(cmd)
+
+        # Read the status
+        response = {}
+        for key in keys:
+            resp = self.conn.read()
+            if resp in ("Yes","No"):
+                response[key] = (resp == "Yes")
+            else:
+                response[key] = None # Error response
+
+        # Return all the responses
+        return response
 
     def drop(self):
         "Deletes the filter from the server. This is permanent"
