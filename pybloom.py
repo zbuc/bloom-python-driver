@@ -32,9 +32,9 @@ class BloomdConnection(object):
             host,port = parts[0],8673
 
         self.server = (host,port)
-        self.udp_port = None
         self.timeout = timeout
-        self.sock = self._create_socket()
+        self.udp_port = None
+        self.sock = None
         self.fh = None
         self.attempts = attempts
         self.logger = logging.getLogger("pybloom.BloomdConnection.%s.%d" % self.server)
@@ -47,6 +47,7 @@ class BloomdConnection(object):
         s.connect(self.server)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
         self.fh = None
+        self.udp_port = None
         return s
 
     def _create_udp_socket(self):
@@ -90,6 +91,7 @@ class BloomdConnection(object):
 
     def send(self, cmd):
         "Sends a command with out the newline to the server"
+        if self.sock is None: self.sock = self._create_socket()
         sent = False
         for attempt in xrange(self.attempts):
             try:
@@ -109,6 +111,7 @@ class BloomdConnection(object):
 
     def read(self):
         "Returns a single line from the file"
+        if self.sock is None: self.sock = self._create_socket()
         if not self.fh: self.fh = self.sock.makefile()
         read = self.fh.readline().rstrip("\r\n")
         return read
