@@ -1,7 +1,7 @@
 """
 This module implements a client for the BloomD server.
 """
-__all__ = ["BloomdError", "BloomdConnection", "BloomdClient", "BloomdCollection"]
+__all__ = ["BloomdError", "BloomdConnection", "BloomdClient", "BloomdFilter"]
 __version__ = "0.1.0"
 import logging
 import socket
@@ -69,7 +69,7 @@ class BloomdConnection(object):
     def read(self):
         "Returns a single line from the file"
         if not self.fh: self.fh = self.sock.makefile()
-        read = self.fh.readline().strip("\r\n")
+        read = self.fh.readline().rstrip("\r\n")
         return read
 
     def readblock(self, start="START", end="END"):
@@ -95,10 +95,10 @@ class BloomdConnection(object):
         Convenience wrapper around `send` and `read`. Sends a command,
         and reads the response, performing a retry if necessary.
         """
-        self.send(cmd)
         done = False
         for attempt in xrange(self.attempts):
             try:
+                self.send(cmd)
                 return self.read()
             except socket.error, e:
                 self.logger.exception("Failed to send command to bloomd server! Attempt: %d" % attempt)
@@ -146,18 +146,18 @@ class BloomdClient(object):
             self.server_conns[server] = conn
             return conn
 
-    def _get_connection(self, collection, strict=True, explicit_server=None):
+    def _get_connection(self, filter, strict=True, explicit_server=None):
         """
-        Gets a connection to a server which is able to service a collection.
-        Because collections may exist on any server, all servers are queried
-        for their collections and the results are cached. This allows us to
+        Gets a connection to a server which is able to service a filter.
+        Because filters may exist on any server, all servers are queried
+        for their filters and the results are cached. This allows us to
         partition data across multiple servers.
 
         :Parameters:
-            - collection : The collection to connect to
-            - strict (optional) : If True, an error is raised when a collection
+            - filter : The filter to connect to
+            - strict (optional) : If True, an error is raised when a filter
                 does not exist.
-            - explicit_server (optional) : If provided, when a collection does
+            - explicit_server (optional) : If provided, when a filter does
                 not exist and strict is False, a connection to this server is made.
                 Otherwise, the server with the fewest sets is returned.
         """
@@ -167,26 +167,26 @@ class BloomdClient(object):
         else:
             # Force checking if we have no info or 5 minutes has elapsed
             if not self.server_info or time.time() - self.info_time > 300:
-                self.server_info = self.list_collections(inc_server=True)
+                self.server_info = self.list_filters(inc_server=True)
                 self.info_time = time.time()
 
-            # Check if this collection is in a known location
-            if collection in self.server_info:
-                serv = self.server_info[collection][0]
+            # Check if this filter is in a known location
+            if filter in self.server_info:
+                serv = self.server_info[filter][0]
                 return self._server_connection(serv)
 
             # Possibly old data? Reload
-            self.server_info = self.list_collections(inc_server=True)
+            self.server_info = self.list_filters(inc_server=True)
             self.info_time = time.time()
 
             # Recheck
-            if collection in self.server_info:
-                serv = self.server_info[collection][0]
+            if filter in self.server_info:
+                serv = self.server_info[filter][0]
                 return self._server_connection(serv)
 
             # Check if this is fatal
             if strict:
-                raise BloomdError, "Collection does not exist!"
+                raise BloomdError, "Filter does not exist!"
 
             # We have an explicit server provided to us, use that
             if explicit_server:
@@ -198,7 +198,7 @@ class BloomdClient(object):
             counts = {}
             for server in self.servers:
                 counts[server] = 0
-            for collection,(server,info) in self.server_info.items():
+            for filter,(server,info) in self.server_info.items():
                 counts[server] += 1
 
             counts = [(count,srv) for srv,count in counts.items()]
@@ -208,19 +208,19 @@ class BloomdClient(object):
             serv = counts[0][1]
             return self._server_connection(serv)
 
-    def create_collection(self, name, capacity=None, prob=None, server=None):
+    def create_filter(self, name, capacity=None, prob=None, server=None):
         """
-        Creates a new collection on the BloomD server and returns a BloomdCollection
-        to interface with it. This may raise a BloomdError if the collection already
+        Creates a new filter on the BloomD server and returns a BloomdFilter
+        to interface with it. This may raise a BloomdError if the filter already
         exists.
 
         :Parameters:
-            - name : The name of the new collection
-            - capacity (optional) : The initial capacity of the collection
+            - name : The name of the new filter
+            - capacity (optional) : The initial capacity of the filter
             - prob (optional) : The inital probability of false positives. If this is
                     provided, then size must also be provided. This is a bloomd limitation.
             - server (optional) : In a multi-server environment, this forces the
-                    collection to be created on a specific server. Should be provided
+                    filter to be created on a specific server. Should be provided
                     in the same format as initialization "host" or "host:port".
         """
         if prob and not capacity: raise ValueError, "Must provide size with probability!"
@@ -231,23 +231,23 @@ class BloomdClient(object):
         conn.send(cmd)
         resp = conn.read()
         if resp == "Done":
-            return BloomdCollection(conn, name)
+            return BloomdFilter(conn, name)
         else:
             raise BloomdError, "Got response: %s" % resp
 
     def __getitem__(self, name):
-        "Gets a BloomdCollection object based on the name."
+        "Gets a BloomdFilter object based on the name."
         conn = self._get_connection(name)
-        return BloomdCollection(conn, name)
+        return BloomdFilter(conn, name)
 
-    def list_collections(self, inc_server=False):
+    def list_filters(self, inc_server=False):
         """
-        Lists all the available collections across all servers.
-        Returns a dictionary of {collection_name : collection_info}.
+        Lists all the available filters across all servers.
+        Returns a dictionary of {filter_name : filter_info}.
 
         :Parameters:
             - inc_server (optional) : If true, the dictionary values
-               will be (server, collection_info) instead of collection_info.
+               will be (server, filter_info) instead of filter_info.
         """
         # Send the list to all first
         for server in self.servers:
@@ -288,57 +288,57 @@ class BloomdClient(object):
         conn.send("conf")
         return conn.response_block_to_dict()
 
-class BloomdCollection(object):
-    "Provides an interface to a single Bloomd collection"
+class BloomdFilter(object):
+    "Provides an interface to a single Bloomd filter"
     def __init__(self, conn, name):
         """
-        Creates a new BloomdCollection object.
+        Creates a new BloomdFilter object.
 
         :Parameters:
             - conn : The connection to use
-            - name : The name of the collection
+            - name : The name of the filter
         """
         self.conn = conn
         self.name = name
 
     def add(self, key):
-        "Adds a new key to the collection. Returns True/False if the key was added."
+        "Adds a new key to the filter. Returns True/False if the key was added."
         resp = self.conn.send_and_receive("set %s %s" % (self.name, key))
         if resp in ("Yes","No"):
             return resp == "Yes"
         raise BloomdError, "Got response: %s" % resp
 
     def drop(self):
-        "Deletes the collection from the server. This is permanent"
+        "Deletes the filter from the server. This is permanent"
         resp = self.conn.send_and_receive("drop %s" % (self.name))
         if resp != "Done":
             raise BloomdError, "Got response: %s" % resp
 
     def __contains__(self, key):
-        "Checks if the key is contained in the collection."
+        "Checks if the key is contained in the filter."
         resp = self.conn.send_and_receive("check %s %s" % (self.name, key))
         if resp in ("Yes","No"):
             return resp == "Yes"
         raise BloomdError, "Got response: %s" % resp
 
     def __len__(self):
-        "Returns the count of items in the collection."
+        "Returns the count of items in the filter."
         info = self.info()
-        return int(info["Size"])
+        return int(info["size"])
 
     def info(self):
-        "Returns the info dictionary about the collection."
+        "Returns the info dictionary about the filter."
         self.conn.send("info %s" % (self.name))
         return self.conn.response_block_to_dict()
 
     def flush(self):
-        "Forces the collection to flush to disk"
+        "Forces the filter to flush to disk"
         resp = self.conn.send_and_receive("flush %s" % (self.name))
         if resp != "Done":
             raise BloomdError, "Got response: %s" % resp
 
     def conf(self):
-        "Returns the configuration dictionary of the collection"
+        "Returns the configuration dictionary of the filter"
         self.conn.send("conf %s" % (self.name))
         return self.conn.response_block_to_dict()
 
