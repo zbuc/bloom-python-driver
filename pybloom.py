@@ -49,7 +49,6 @@ class BloomdConnection(object):
         s.connect(self.server)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
         self.fh = None
-        self.udp_port = None
         return s
 
     def _create_udp_socket(self):
