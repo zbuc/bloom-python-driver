@@ -19,21 +19,23 @@ class BloomdConnection(object):
         Creates a new Bloomd Connection.
 
         :Parameters:
-            - server: Provided as a string, either as "host" or "host:port".
-                      Uses the default port of 8673 if none is provided.
+            - server: Provided as a string, either as "host" or "host:port" or "host:port:udpport".
+                      Uses the default port of 8673 if none is provided for tcp, and 8674 for udp.
             - timeout: The socket timeout to use.
             - attempts (optional): Maximum retry attempts on errors. Defaults to 3.
         """
         # Parse the host/port
-        parts = server.split(":",1)
-        if len(parts) == 2:
-            host,port = parts[0],int(parts[1])
+        parts = server.split(":",2)
+        if len(parts) == 3:
+            host,port,udp = parts[0],int(parts[1]),int(parts[2])
+        elif len(parts) == 2:
+            host,port,udp = parts[0],int(parts[1]),8674
         else:
-            host,port = parts[0],8673
+            host,port,udp = parts[0],8673,8674
 
         self.server = (host,port)
         self.timeout = timeout
-        self.udp_port = None
+        self.udp_port = udp
         self.sock = None
         self.fh = None
         self.attempts = attempts
@@ -52,7 +54,6 @@ class BloomdConnection(object):
 
     def _create_udp_socket(self):
         "Creates a new UDP socket, attaches to the server"
-        assert self.udp_port is not None
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect((self.server[0],self.udp_port))
         return s
@@ -64,12 +65,6 @@ class BloomdConnection(object):
         be a list of commands. This will try to minimze the number of UDP
         packets sent
         """
-        if self.udp_port is None:
-            # Get the UDP port
-            self.send("conf")
-            conf = self.response_block_to_dict()
-            self.udp_port = int(conf["udp_port"])
-
         # Add a newline to all the commands
         cmds = [cmd+"\n" for cmd in cmds]
 
@@ -170,7 +165,7 @@ class BloomdClient(object):
     def __init__(self, servers, timeout=None):
         """
         Creates a new BloomD client. The client takes a list of
-        servers, which are provided as strings in the "host" or "host:port"
+        servers, which are provided as strings in the "host" or "host:port" or "host:port:udpport"
         format. Optionally takes a socket timeout to use, but defaults
         to no timeout.
         """
