@@ -32,6 +32,7 @@ class BloomdConnection(object):
             host,port = parts[0],8673
 
         self.server = (host,port)
+        self.udp_port = None
         self.timeout = timeout
         self.sock = self._create_socket()
         self.fh = None
@@ -44,8 +45,48 @@ class BloomdConnection(object):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(self.timeout)
         s.connect(self.server)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
         self.fh = None
         return s
+
+    def _create_udp_socket(self):
+        "Creates a new UDP socket, attaches to the server"
+        assert self.udp_port is not None
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect((self.server[0],self.udp_port))
+        return s
+
+    def udp_send(self, cmds):
+        """
+        Sends a list of commands to the server using UDP. This may need to query
+        for the servers UDP port and cache the value. The argument should
+        be a list of commands. This will try to minimze the number of UDP
+        packets sent
+        """
+        if self.udp_port is None:
+            # Get the UDP port
+            self.send("conf")
+            conf = self.response_block_to_dict()
+            self.udp_port = int(conf["udp_port"])
+
+        # Add a newline to all the commands
+        cmds = [cmd+"\n" for cmd in cmds]
+
+        # Get a UDP socket
+        udp_sock = self._create_udp_socket()
+        while len(cmds) > 0:
+            # Determine the messages we can fit into 1450 bytes
+            # We want to stay under the MTU of 1500 for ethernet
+            idx = 1
+            while sum([len(cmd) for cmd in cmds[:idx+1]]) <= 1450 and idx <= len(cmds):
+                idx += 1
+
+            # Build and send the message
+            message = "".join(cmds[:idx])
+            udp_sock.sendall(message)
+
+            # Onto the next batch
+            cmds = cmds[idx:]
 
     def send(self, cmd):
         "Sends a command with out the newline to the server"
