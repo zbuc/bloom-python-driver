@@ -1,5 +1,5 @@
 from setuptools import setup, Command
-import pybloomd
+import pybloom
 
 # Get the long description by reading the README
 try:
@@ -9,7 +9,7 @@ except:
 
 # Create the actual setup method
 setup(name='pybloom',
-      version=pybloomd.__version__,
+      version=pybloom.__version__,
       description='Client library to interface with multiple bloomd servers',
       long_description=readme_content,
       author='Armon Dadgar',
