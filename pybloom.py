@@ -249,8 +249,8 @@ class BloomdClient(object):
     def create_filter(self, name, capacity=None, prob=None, server=None):
         """
         Creates a new filter on the BloomD server and returns a BloomdFilter
-        to interface with it. This may raise a BloomdError if the filter already
-        exists.
+        to interface with it. This will return a BloomdFilter object attached
+        to the filter if the filter already exists.
 
         :Parameters:
             - name : The name of the new filter
@@ -270,6 +270,8 @@ class BloomdClient(object):
         resp = conn.read()
         if resp == "Done":
             return BloomdFilter(conn, name)
+        elif resp == "Exists":
+            return self[name]
         else:
             raise BloomdError, "Got response: %s" % resp
 
