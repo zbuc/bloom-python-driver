@@ -199,52 +199,48 @@ class BloomdClient(object):
                 not exist and strict is False, a connection to this server is made.
                 Otherwise, the server with the fewest sets is returned.
         """
-        if len(self.servers) == 1:
-            serv = self.servers[0]
-            return self._server_connection(serv)
-        else:
-            # Force checking if we have no info or 5 minutes has elapsed
-            if not self.server_info or time.time() - self.info_time > 300:
-                self.server_info = self.list_filters(inc_server=True)
-                self.info_time = time.time()
-
-            # Check if this filter is in a known location
-            if filter in self.server_info:
-                serv = self.server_info[filter][0]
-                return self._server_connection(serv)
-
-            # Possibly old data? Reload
+        # Force checking if we have no info or 5 minutes has elapsed
+        if not self.server_info or time.time() - self.info_time > 300:
             self.server_info = self.list_filters(inc_server=True)
             self.info_time = time.time()
 
-            # Recheck
-            if filter in self.server_info:
-                serv = self.server_info[filter][0]
-                return self._server_connection(serv)
-
-            # Check if this is fatal
-            if strict:
-                raise BloomdError, "Filter does not exist!"
-
-            # We have an explicit server provided to us, use that
-            if explicit_server:
-                return self._server_connection(explicit_server)
-
-            # Does not exist, and is not not strict
-            # we can select a server on any criteria then.
-            # We will use the server with the minimal set count.
-            counts = {}
-            for server in self.servers:
-                counts[server] = 0
-            for filter,(server,info) in self.server_info.items():
-                counts[server] += 1
-
-            counts = [(count,srv) for srv,count in counts.items()]
-            counts.sort()
-
-            # Select the least used
-            serv = counts[0][1]
+        # Check if this filter is in a known location
+        if filter in self.server_info:
+            serv = self.server_info[filter][0]
             return self._server_connection(serv)
+
+        # Possibly old data? Reload
+        self.server_info = self.list_filters(inc_server=True)
+        self.info_time = time.time()
+
+        # Recheck
+        if filter in self.server_info:
+            serv = self.server_info[filter][0]
+            return self._server_connection(serv)
+
+        # Check if this is fatal
+        if strict:
+            raise BloomdError, "Filter does not exist!"
+
+        # We have an explicit server provided to us, use that
+        if explicit_server:
+            return self._server_connection(explicit_server)
+
+        # Does not exist, and is not not strict
+        # we can select a server on any criteria then.
+        # We will use the server with the minimal set count.
+        counts = {}
+        for server in self.servers:
+            counts[server] = 0
+        for filter,(server,info) in self.server_info.items():
+            counts[server] += 1
+
+        counts = [(count,srv) for srv,count in counts.items()]
+        counts.sort()
+
+        # Select the least used
+        serv = counts[0][1]
+        return self._server_connection(serv)
 
     def create_filter(self, name, capacity=None, prob=None, server=None):
         """
