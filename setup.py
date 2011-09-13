@@ -1,5 +1,5 @@
 from setuptools import setup, Command
-import pybloom
+import pybloomd
 
 # Get the long description by reading the README
 try:
@@ -8,8 +8,8 @@ except:
     readme_content = ""
 
 # Create the actual setup method
-setup(name='pybloom',
-      version=pybloom.__version__,
+setup(name='pybloomd',
+      version=pybloomd.__version__,
       description='Client library to interface with multiple bloomd servers',
       long_description=readme_content,
       author='Armon Dadgar',
@@ -19,7 +19,7 @@ setup(name='pybloom',
       url="https://github.com/kiip/bloom-python-driver/",
       license="MIT License",
       keywords=["bloom", "filter","client","bloomd"],
-      py_modules=['pybloom'],
+      py_modules=['pybloomd'],
       classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
