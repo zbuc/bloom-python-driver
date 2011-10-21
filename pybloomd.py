@@ -390,6 +390,15 @@ class BloomdFilter(object):
         if resp != "Done":
             raise BloomdError, "Got response: %s" % resp
 
+    def close(self):
+        """
+        Closes the filter on the server. Filter can be restored either by
+        calling create with the same name, or restarting the bloomd server.
+        """
+        resp = self.conn.send_and_receive("close %s" % (self.name))
+        if resp != "Done":
+            raise BloomdError, "Got response: %s" % resp
+
     def __contains__(self, key):
         "Checks if the key is contained in the filter."
         resp = self.conn.send_and_receive("check %s %s" % (self.name, key))
