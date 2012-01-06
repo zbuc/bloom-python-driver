@@ -1,3 +1,9 @@
+# 0.2.0
+
+ * Added support for the `bulk` and `multi` command
+ * Added support for in_memory flag for filter creation
+ * SHA: a4ca714
+
 # 0.1.1
 
  * Added support for the `close` command
