@@ -2,7 +2,7 @@
 This module implements a client for the BloomD server.
 """
 __all__ = ["BloomdError", "BloomdConnection", "BloomdClient", "BloomdFilter"]
-__version__ = "0.1.1"
+__version__ = "0.2.0"
 import logging
 import socket
 import errno
@@ -242,7 +242,7 @@ class BloomdClient(object):
         serv = counts[0][1]
         return self._server_connection(serv)
 
-    def create_filter(self, name, capacity=None, prob=None, server=None):
+    def create_filter(self, name, capacity=None, prob=None, in_memory=False, server=None):
         """
         Creates a new filter on the BloomD server and returns a BloomdFilter
         to interface with it. This will return a BloomdFilter object attached
@@ -253,6 +253,8 @@ class BloomdClient(object):
             - capacity (optional) : The initial capacity of the filter
             - prob (optional) : The inital probability of false positives. If this is
                     provided, then size must also be provided. This is a bloomd limitation.
+            - in_memory (optional) : If True, specified that the filter should be created
+              in memory only. This is only supported in Bloomd versions 0.6 and greater.
             - server (optional) : In a multi-server environment, this forces the
                     filter to be created on a specific server. Should be provided
                     in the same format as initialization "host" or "host:port".
@@ -262,6 +264,7 @@ class BloomdClient(object):
         cmd = "create %s" % name
         if capacity: cmd += " %d" % capacity
         if prob: cmd += " %f" % prob
+        if in_memory: cmd += " in_memory"
         conn.send(cmd)
         resp = conn.read()
         if resp == "Done":
@@ -384,6 +387,15 @@ class BloomdFilter(object):
         # Return all the responses
         return response
 
+    def bulk(self, keys):
+        "Performs a bulk set command, adds multiple keys in the filter"
+        command = ("bulk %s " % self.name) + " ".join(keys)
+        resp = self.conn.send_and_receive(command)
+
+        if resp.startswith("Yes") or resp.startswith("No"):
+            return [r == "Yes" for r in resp.split(" ")]
+        raise BloomdError, "Got response: %s" % resp
+
     def drop(self):
         "Deletes the filter from the server. This is permanent"
         resp = self.conn.send_and_receive("drop %s" % (self.name))
@@ -404,6 +416,15 @@ class BloomdFilter(object):
         resp = self.conn.send_and_receive("check %s %s" % (self.name, key))
         if resp in ("Yes","No"):
             return resp == "Yes"
+        raise BloomdError, "Got response: %s" % resp
+
+    def multi(self, keys):
+        "Performs a multi command, checks for multiple keys in the filter"
+        command = ("multi %s " % self.name) + " ".join(keys)
+        resp = self.conn.send_and_receive(command)
+
+        if resp.startswith("Yes") or resp.startswith("No"):
+            return [r == "Yes" for r in resp.split(" ")]
         raise BloomdError, "Got response: %s" % resp
 
     def __len__(self):
