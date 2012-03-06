@@ -7,6 +7,7 @@ import logging
 import socket
 import errno
 import time
+import hashlib
 
 
 class BloomdError(Exception):
@@ -131,12 +132,14 @@ class BloomdConnection(object):
 
 class BloomdClient(object):
     "Provides a client abstraction around the BloomD interface."
-    def __init__(self, servers, timeout=None):
+    def __init__(self, servers, timeout=None, hash_keys=False):
         """
-        Creates a new BloomD client. The client takes a list of
-        servers, which are provided as strings in the "host" or "host:port".
-        Optionally takes a socket timeout to use, but defaults
-        to no timeout.
+        Creates a new BloomD client.
+
+        :Parameters:
+            - servers : A list of servers, which are provided as strings in the "host" or "host:port".
+            - timeout: (Optional) A socket timeout to use, defaults to no timeout.
+            - hash_keys: (Optional) Should keys be hashed before sending to bloomd. Defaults to False.
         """
         if len(servers) == 0:
             raise ValueError("Must provide at least 1 server!")
@@ -145,6 +148,7 @@ class BloomdClient(object):
         self.server_conns = {}
         self.server_info = None
         self.info_time = 0
+        self.hash_keys = hash_keys
 
     def _server_connection(self, server):
         "Returns a connection to a server, tries to cache connections."
@@ -242,7 +246,7 @@ class BloomdClient(object):
         conn.send(cmd)
         resp = conn.read()
         if resp == "Done":
-            return BloomdFilter(conn, name)
+            return BloomdFilter(conn, name, self.hash_keys)
         elif resp == "Exists":
             return self[name]
         else:
@@ -251,7 +255,7 @@ class BloomdClient(object):
     def __getitem__(self, name):
         "Gets a BloomdFilter object based on the name."
         conn = self._get_connection(name)
-        return BloomdFilter(conn, name)
+        return BloomdFilter(conn, name, self.hash_keys)
 
     def list_filters(self, inc_server=False):
         """
@@ -298,29 +302,39 @@ class BloomdClient(object):
 
 class BloomdFilter(object):
     "Provides an interface to a single Bloomd filter"
-    def __init__(self, conn, name):
+    def __init__(self, conn, name, hash_keys=False):
         """
         Creates a new BloomdFilter object.
 
         :Parameters:
             - conn : The connection to use
             - name : The name of the filter
+            - hash_keys : Should the keys be hashed client side
         """
         self.conn = conn
         self.name = name
+        self.hash_keys = hash_keys
+
+    def _get_key(self, key):
+        """
+        Returns the key we should send to the server
+        """
+        if self.hash_keys:
+            return hashlib.sha1(key).hexdigest()
+        return key
 
     def add(self, key):
         """
         Adds a new key to the filter. Returns True/False if the key was added.
         """
-        resp = self.conn.send_and_receive("s %s %s" % (self.name, key))
+        resp = self.conn.send_and_receive("s %s %s" % (self.name, self._get_key(key)))
         if resp in ("Yes", "No"):
             return resp == "Yes"
         raise BloomdError("Got response: %s" % resp)
 
     def bulk(self, keys):
         "Performs a bulk set command, adds multiple keys in the filter"
-        command = ("b %s " % self.name) + " ".join(keys)
+        command = ("b %s " % self.name) + " ".join([self._get_key(k) for k in keys])
         resp = self.conn.send_and_receive(command)
 
         if resp.startswith("Yes") or resp.startswith("No"):
@@ -343,14 +357,14 @@ class BloomdFilter(object):
 
     def __contains__(self, key):
         "Checks if the key is contained in the filter."
-        resp = self.conn.send_and_receive("c %s %s" % (self.name, key))
+        resp = self.conn.send_and_receive("c %s %s" % (self.name, self._get_key(key)))
         if resp in ("Yes", "No"):
             return resp == "Yes"
         raise BloomdError("Got response: %s" % resp)
 
     def multi(self, keys):
         "Performs a multi command, checks for multiple keys in the filter"
-        command = ("m %s " % self.name) + " ".join(keys)
+        command = ("m %s " % self.name) + " ".join([self._get_key(k) for k in keys])
         resp = self.conn.send_and_receive(command)
 
         if resp.startswith("Yes") or resp.startswith("No"):
