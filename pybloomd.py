@@ -2,7 +2,7 @@
 This module implements a client for the BloomD server.
 """
 __all__ = ["BloomdError", "BloomdConnection", "BloomdClient", "BloomdFilter"]
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 import logging
 import socket
 import errno
@@ -331,12 +331,6 @@ class BloomdClient(object):
             if resp != "Done":
                 raise BloomdError("Got response: '%s' from '%s'" % (resp, server))
 
-    def conf(self):
-        "Returns the configuration dictionary of the first server."
-        conn = self._server_connection(self.servers[0])
-        conn.send("conf")
-        return conn.response_block_to_dict()
-
 
 class BloomdFilter(object):
     "Provides an interface to a single Bloomd filter"
@@ -359,10 +353,10 @@ class BloomdFilter(object):
         we do not have an acknowledgement from the server
         """
         if udp:
-            self.conn.udp_send(["set %s %s" % (self.name, key)])
+            self.conn.udp_send(["s %s %s" % (self.name, key)])
             return True
 
-        resp = self.conn.send_and_receive("set %s %s" % (self.name, key))
+        resp = self.conn.send_and_receive("s %s %s" % (self.name, key))
         if resp in ("Yes", "No"):
             return resp == "Yes"
         raise BloomdError("Got response: %s" % resp)
@@ -374,7 +368,7 @@ class BloomdFilter(object):
         If UDP is True, we will just send the commands using UDP and not wait for the response.
         It also means that all keys will return True as having been added.
         """
-        cmd_base = ("set %s" % self.name) + " %s"
+        cmd_base = ("s %s" % self.name) + " %s"
         cmds = [cmd_base % key for key in keys]
 
         # Send all the sets, and pretend they all worked...
@@ -400,7 +394,7 @@ class BloomdFilter(object):
 
     def bulk(self, keys):
         "Performs a bulk set command, adds multiple keys in the filter"
-        command = ("bulk %s " % self.name) + " ".join(keys)
+        command = ("b %s " % self.name) + " ".join(keys)
         resp = self.conn.send_and_receive(command)
 
         if resp.startswith("Yes") or resp.startswith("No"):
@@ -424,14 +418,14 @@ class BloomdFilter(object):
 
     def __contains__(self, key):
         "Checks if the key is contained in the filter."
-        resp = self.conn.send_and_receive("check %s %s" % (self.name, key))
+        resp = self.conn.send_and_receive("c %s %s" % (self.name, key))
         if resp in ("Yes", "No"):
             return resp == "Yes"
         raise BloomdError("Got response: %s" % resp)
 
     def multi(self, keys):
         "Performs a multi command, checks for multiple keys in the filter"
-        command = ("multi %s " % self.name) + " ".join(keys)
+        command = ("m %s " % self.name) + " ".join(keys)
         resp = self.conn.send_and_receive(command)
 
         if resp.startswith("Yes") or resp.startswith("No"):
@@ -453,9 +447,4 @@ class BloomdFilter(object):
         resp = self.conn.send_and_receive("flush %s" % (self.name))
         if resp != "Done":
             raise BloomdError("Got response: %s" % resp)
-
-    def conf(self):
-        "Returns the configuration dictionary of the filter"
-        self.conn.send("conf %s" % (self.name))
-        return self.conn.response_block_to_dict()
 
