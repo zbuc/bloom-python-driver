@@ -27,17 +27,14 @@ class BloomdConnection(object):
             - attempts (optional): Maximum retry attempts on errors. Defaults to 3.
         """
         # Parse the host/port
-        parts = server.split(":", 2)
-        if len(parts) == 3:
-            host, port, udp = parts[0], int(parts[1]), int(parts[2])
-        elif len(parts) == 2:
-            host, port, udp = parts[0], int(parts[1]), 8674
+        parts = server.split(":", 1)
+        if len(parts) == 2:
+            host, port = parts[0], int(parts[1])
         else:
-            host, port, udp = parts[0], 8673, 8674
+            host, port = parts[0], 8673
 
         self.server = (host, port)
         self.timeout = timeout
-        self.udp_port = udp
         self.sock = None
         self.fh = None
         self.attempts = attempts
@@ -52,38 +49,6 @@ class BloomdConnection(object):
         s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
         self.fh = None
         return s
-
-    def _create_udp_socket(self):
-        "Creates a new UDP socket, attaches to the server"
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect((self.server[0], self.udp_port))
-        return s
-
-    def udp_send(self, cmds):
-        """
-        Sends a list of commands to the server using UDP. This may need to query
-        for the servers UDP port and cache the value. The argument should
-        be a list of commands. This will try to minimze the number of UDP
-        packets sent
-        """
-        # Add a newline to all the commands
-        cmds = [cmd + "\n" for cmd in cmds]
-
-        # Get a UDP socket
-        udp_sock = self._create_udp_socket()
-        while len(cmds) > 0:
-            # Determine the messages we can fit into 1450 bytes
-            # We want to stay under the MTU of 1500 for ethernet
-            idx = 1
-            while sum([len(cmd) for cmd in cmds[:idx + 1]]) <= 1450 and idx <= len(cmds):
-                idx += 1
-
-            # Build and send the message
-            message = "".join(cmds[:idx])
-            udp_sock.sendall(message)
-
-            # Onto the next batch
-            cmds = cmds[idx:]
 
     def send(self, cmd):
         "Sends a command with out the newline to the server"
@@ -169,8 +134,8 @@ class BloomdClient(object):
     def __init__(self, servers, timeout=None):
         """
         Creates a new BloomD client. The client takes a list of
-        servers, which are provided as strings in the "host" or "host:port" or "host:port:udpport"
-        format. Optionally takes a socket timeout to use, but defaults
+        servers, which are provided as strings in the "host" or "host:port".
+        Optionally takes a socket timeout to use, but defaults
         to no timeout.
         """
         if len(servers) == 0:
@@ -257,10 +222,9 @@ class BloomdClient(object):
         :Parameters:
             - name : The name of the new filter
             - capacity (optional) : The initial capacity of the filter
-            - prob (optional) : The inital probability of false positives. If this is
-                    provided, then size must also be provided. This is a bloomd limitation.
+            - prob (optional) : The inital probability of false positives.
             - in_memory (optional) : If True, specified that the filter should be created
-              in memory only. This is only supported in Bloomd versions 0.6 and greater.
+              in memory only.
             - server (optional) : In a multi-server environment, this forces the
                     filter to be created on a specific server. Should be provided
                     in the same format as initialization "host" or "host:port".
@@ -270,11 +234,11 @@ class BloomdClient(object):
         conn = self._get_connection(name, strict=False, explicit_server=server)
         cmd = "create %s" % name
         if capacity:
-            cmd += " %d" % capacity
+            cmd += " capacity=%d" % capacity
         if prob:
-            cmd += " %f" % prob
+            cmd += " prob=%f" % prob
         if in_memory:
-            cmd += " in_memory"
+            cmd += " in_memory=1"
         conn.send(cmd)
         resp = conn.read()
         if resp == "Done":
@@ -345,52 +309,14 @@ class BloomdFilter(object):
         self.conn = conn
         self.name = name
 
-    def add(self, key, udp=False):
+    def add(self, key):
         """
         Adds a new key to the filter. Returns True/False if the key was added.
-        If UDP is True, then we will just send the set command using UDP and not
-        wait for the response. It also means that we will always return True since
-        we do not have an acknowledgement from the server
         """
-        if udp:
-            self.conn.udp_send(["s %s %s" % (self.name, key)])
-            return True
-
         resp = self.conn.send_and_receive("s %s %s" % (self.name, key))
         if resp in ("Yes", "No"):
             return resp == "Yes"
         raise BloomdError("Got response: %s" % resp)
-
-    def add_all(self, keys, udp=False):
-        """
-        Adds multiple keys to the filter. Returns a dictionary which maps
-        each key onto True/False if the key was added (None is used for exceptions).
-        If UDP is True, we will just send the commands using UDP and not wait for the response.
-        It also means that all keys will return True as having been added.
-        """
-        cmd_base = ("s %s" % self.name) + " %s"
-        cmds = [cmd_base % key for key in keys]
-
-        # Send all the sets, and pretend they all worked...
-        if udp:
-            self.conn.udp_send(cmds)
-            return dict([(key, True) for key in keys])
-
-        # Send all the sets first
-        for cmd in cmds:
-            self.conn.send(cmd)
-
-        # Read the status
-        response = {}
-        for key in keys:
-            resp = self.conn.read()
-            if resp in ("Yes", "No"):
-                response[key] = (resp == "Yes")
-            else:
-                response[key] = None  # Error response
-
-        # Return all the responses
-        return response
 
     def bulk(self, keys):
         "Performs a bulk set command, adds multiple keys in the filter"
@@ -409,8 +335,7 @@ class BloomdFilter(object):
 
     def close(self):
         """
-        Closes the filter on the server. Filter can be restored either by
-        calling create with the same name, or restarting the bloomd server.
+        Closes the filter on the server.
         """
         resp = self.conn.send_and_receive("close %s" % (self.name))
         if resp != "Done":
