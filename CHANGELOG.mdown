@@ -1,3 +1,14 @@
+# 0.3.0
+
+ * Add support for client-side SHA1 of keys. Supports non-ascii keys, more
+   useful when multi/bulk are being used, and minimizes network traffic for
+   large keys.
+ * Removed `conf` command (no longer supported)
+ * Removed add_all command (bulk favored instead)
+ * Removed UDP support (cBloomd does not support it)
+ * Deprecating support for pyBloomd, supporting cBloomd instead
+ * SHA: b1cea00
+
 # 0.2.0
 
  * Added support for the `bulk` and `multi` command
