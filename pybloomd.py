@@ -8,9 +8,11 @@ import socket
 import errno
 import time
 
+
 class BloomdError(Exception):
     "Root of exceptions from the client library"
     pass
+
 
 class BloomdConnection(object):
     "Provides a convenient interface to server connections"
@@ -25,15 +27,15 @@ class BloomdConnection(object):
             - attempts (optional): Maximum retry attempts on errors. Defaults to 3.
         """
         # Parse the host/port
-        parts = server.split(":",2)
+        parts = server.split(":", 2)
         if len(parts) == 3:
-            host,port,udp = parts[0],int(parts[1]),int(parts[2])
+            host, port, udp = parts[0], int(parts[1]), int(parts[2])
         elif len(parts) == 2:
-            host,port,udp = parts[0],int(parts[1]),8674
+            host, port, udp = parts[0], int(parts[1]), 8674
         else:
-            host,port,udp = parts[0],8673,8674
+            host, port, udp = parts[0], 8673, 8674
 
-        self.server = (host,port)
+        self.server = (host, port)
         self.timeout = timeout
         self.udp_port = udp
         self.sock = None
@@ -54,7 +56,7 @@ class BloomdConnection(object):
     def _create_udp_socket(self):
         "Creates a new UDP socket, attaches to the server"
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect((self.server[0],self.udp_port))
+        s.connect((self.server[0], self.udp_port))
         return s
 
     def udp_send(self, cmds):
@@ -65,7 +67,7 @@ class BloomdConnection(object):
         packets sent
         """
         # Add a newline to all the commands
-        cmds = [cmd+"\n" for cmd in cmds]
+        cmds = [cmd + "\n" for cmd in cmds]
 
         # Get a UDP socket
         udp_sock = self._create_udp_socket()
@@ -73,7 +75,7 @@ class BloomdConnection(object):
             # Determine the messages we can fit into 1450 bytes
             # We want to stay under the MTU of 1500 for ethernet
             idx = 1
-            while sum([len(cmd) for cmd in cmds[:idx+1]]) <= 1450 and idx <= len(cmds):
+            while sum([len(cmd) for cmd in cmds[:idx + 1]]) <= 1450 and idx <= len(cmds):
                 idx += 1
 
             # Build and send the message
@@ -85,11 +87,12 @@ class BloomdConnection(object):
 
     def send(self, cmd):
         "Sends a command with out the newline to the server"
-        if self.sock is None: self.sock = self._create_socket()
+        if self.sock is None:
+            self.sock = self._create_socket()
         sent = False
         for attempt in xrange(self.attempts):
             try:
-                self.sock.sendall(cmd+"\n")
+                self.sock.sendall(cmd + "\n")
                 sent = True
                 break
             except socket.error, e:
@@ -101,12 +104,14 @@ class BloomdConnection(object):
 
         if not sent:
             self.logger.critical("Failed to send command to bloomd server after %d attempts!" % self.attempts)
-            raise EnvironmentError, "Cannot contact bloomd server!"
+            raise EnvironmentError("Cannot contact bloomd server!")
 
     def read(self):
         "Returns a single line from the file"
-        if self.sock is None: self.sock = self._create_socket()
-        if not self.fh: self.fh = self.sock.makefile()
+        if self.sock is None:
+            self.sock = self._create_socket()
+        if not self.fh:
+            self.fh = self.sock.makefile()
         read = self.fh.readline().rstrip("\r\n")
         return read
 
@@ -120,7 +125,7 @@ class BloomdConnection(object):
         lines = []
         first = self.read()
         if first != start:
-            raise BloomdError, "Did not get block start (%s)! Got '%s'!" % (start, first)
+            raise BloomdError("Did not get block start (%s)! Got '%s'!" % (start, first))
         while True:
             line = self.read()
             if line == end:
@@ -147,7 +152,7 @@ class BloomdConnection(object):
 
         if not done:
             self.logger.critical("Failed to send command to bloomd server after %d attempts!" % self.attempts)
-            raise EnvironmentError, "Cannot contact bloomd server!"
+            raise EnvironmentError("Cannot contact bloomd server!")
 
     def response_block_to_dict(self):
         """
@@ -156,7 +161,7 @@ class BloomdConnection(object):
         first column as the key, and the remainder as the value.
         """
         resp_lines = self.readblock()
-        return dict(tuple(l.split(" ",1)) for l in resp_lines)
+        return dict(tuple(l.split(" ", 1)) for l in resp_lines)
 
 
 class BloomdClient(object):
@@ -168,7 +173,8 @@ class BloomdClient(object):
         format. Optionally takes a socket timeout to use, but defaults
         to no timeout.
         """
-        if len(servers) == 0: raise ValueError, "Must provide at least 1 server!"
+        if len(servers) == 0:
+            raise ValueError("Must provide at least 1 server!")
         self.servers = servers
         self.timeout = timeout
         self.server_conns = {}
@@ -220,7 +226,7 @@ class BloomdClient(object):
 
         # Check if this is fatal
         if strict:
-            raise BloomdError, "Filter does not exist!"
+            raise BloomdError("Filter does not exist!")
 
         # We have an explicit server provided to us, use that
         if explicit_server:
@@ -232,10 +238,10 @@ class BloomdClient(object):
         counts = {}
         for server in self.servers:
             counts[server] = 0
-        for filter,(server,info) in self.server_info.items():
+        for filter, (server, info) in self.server_info.items():
             counts[server] += 1
 
-        counts = [(count,srv) for srv,count in counts.items()]
+        counts = [(count, srv) for srv, count in counts.items()]
         counts.sort()
 
         # Select the least used
@@ -259,12 +265,16 @@ class BloomdClient(object):
                     filter to be created on a specific server. Should be provided
                     in the same format as initialization "host" or "host:port".
         """
-        if prob and not capacity: raise ValueError, "Must provide size with probability!"
+        if prob and not capacity:
+            raise ValueError("Must provide size with probability!")
         conn = self._get_connection(name, strict=False, explicit_server=server)
         cmd = "create %s" % name
-        if capacity: cmd += " %d" % capacity
-        if prob: cmd += " %f" % prob
-        if in_memory: cmd += " in_memory"
+        if capacity:
+            cmd += " %d" % capacity
+        if prob:
+            cmd += " %f" % prob
+        if in_memory:
+            cmd += " in_memory"
         conn.send(cmd)
         resp = conn.read()
         if resp == "Done":
@@ -272,7 +282,7 @@ class BloomdClient(object):
         elif resp == "Exists":
             return self[name]
         else:
-            raise BloomdError, "Got response: %s" % resp
+            raise BloomdError("Got response: %s" % resp)
 
     def __getitem__(self, name):
         "Gets a BloomdFilter object based on the name."
@@ -299,9 +309,9 @@ class BloomdClient(object):
             conn = self._server_connection(server)
             resp = conn.readblock()
             for line in resp:
-                name,info = line.split(" ",1)
+                name, info = line.split(" ", 1)
                 if inc_server:
-                    responses[name] = server,info
+                    responses[name] = server, info
                 else:
                     responses[name] = info
 
@@ -319,13 +329,14 @@ class BloomdClient(object):
             conn = self._server_connection(server)
             resp = conn.read()
             if resp != "Done":
-                raise BloomdError, "Got response: '%s' from '%s'" % (resp, server)
+                raise BloomdError("Got response: '%s' from '%s'" % (resp, server))
 
     def conf(self):
         "Returns the configuration dictionary of the first server."
         conn = self._server_connection(self.servers[0])
         conn.send("conf")
         return conn.response_block_to_dict()
+
 
 class BloomdFilter(object):
     "Provides an interface to a single Bloomd filter"
@@ -352,9 +363,9 @@ class BloomdFilter(object):
             return True
 
         resp = self.conn.send_and_receive("set %s %s" % (self.name, key))
-        if resp in ("Yes","No"):
+        if resp in ("Yes", "No"):
             return resp == "Yes"
-        raise BloomdError, "Got response: %s" % resp
+        raise BloomdError("Got response: %s" % resp)
 
     def add_all(self, keys, udp=False):
         """
@@ -369,7 +380,7 @@ class BloomdFilter(object):
         # Send all the sets, and pretend they all worked...
         if udp:
             self.conn.udp_send(cmds)
-            return dict([(key,True) for key in keys])
+            return dict([(key, True) for key in keys])
 
         # Send all the sets first
         for cmd in cmds:
@@ -379,10 +390,10 @@ class BloomdFilter(object):
         response = {}
         for key in keys:
             resp = self.conn.read()
-            if resp in ("Yes","No"):
+            if resp in ("Yes", "No"):
                 response[key] = (resp == "Yes")
             else:
-                response[key] = None # Error response
+                response[key] = None  # Error response
 
         # Return all the responses
         return response
@@ -394,13 +405,13 @@ class BloomdFilter(object):
 
         if resp.startswith("Yes") or resp.startswith("No"):
             return [r == "Yes" for r in resp.split(" ")]
-        raise BloomdError, "Got response: %s" % resp
+        raise BloomdError("Got response: %s" % resp)
 
     def drop(self):
         "Deletes the filter from the server. This is permanent"
         resp = self.conn.send_and_receive("drop %s" % (self.name))
         if resp != "Done":
-            raise BloomdError, "Got response: %s" % resp
+            raise BloomdError("Got response: %s" % resp)
 
     def close(self):
         """
@@ -409,14 +420,14 @@ class BloomdFilter(object):
         """
         resp = self.conn.send_and_receive("close %s" % (self.name))
         if resp != "Done":
-            raise BloomdError, "Got response: %s" % resp
+            raise BloomdError("Got response: %s" % resp)
 
     def __contains__(self, key):
         "Checks if the key is contained in the filter."
         resp = self.conn.send_and_receive("check %s %s" % (self.name, key))
-        if resp in ("Yes","No"):
+        if resp in ("Yes", "No"):
             return resp == "Yes"
-        raise BloomdError, "Got response: %s" % resp
+        raise BloomdError("Got response: %s" % resp)
 
     def multi(self, keys):
         "Performs a multi command, checks for multiple keys in the filter"
@@ -425,7 +436,7 @@ class BloomdFilter(object):
 
         if resp.startswith("Yes") or resp.startswith("No"):
             return [r == "Yes" for r in resp.split(" ")]
-        raise BloomdError, "Got response: %s" % resp
+        raise BloomdError("Got response: %s" % resp)
 
     def __len__(self):
         "Returns the count of items in the filter."
@@ -441,7 +452,7 @@ class BloomdFilter(object):
         "Forces the filter to flush to disk"
         resp = self.conn.send_and_receive("flush %s" % (self.name))
         if resp != "Done":
-            raise BloomdError, "Got response: %s" % resp
+            raise BloomdError("Got response: %s" % resp)
 
     def conf(self):
         "Returns the configuration dictionary of the filter"
