@@ -355,6 +355,14 @@ class BloomdFilter(object):
         if resp != "Done":
             raise BloomdError("Got response: %s" % resp)
 
+    def clear(self):
+        """
+        Clears the filter on the server.
+        """
+        resp = self.conn.send_and_receive("clear %s" % (self.name))
+        if resp != "Done":
+            raise BloomdError("Got response: %s" % resp)
+
     def __contains__(self, key):
         "Checks if the key is contained in the filter."
         resp = self.conn.send_and_receive("c %s %s" % (self.name, self._get_key(key)))
