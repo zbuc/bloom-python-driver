@@ -1,3 +1,8 @@
+# 0.4.0
+
+* Added support for pipelining of commands
+* SHA: 940a8f0
+
 # 0.3.1
 
  * Added support for the close command
