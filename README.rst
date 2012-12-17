@@ -14,6 +14,7 @@ Features
    - Auto-discovers filter locations
    - Balance the creation of new filters
    - Explicitly name the location to make filters
+* Command pipelining to reduce latency
 
 
 Install
@@ -60,4 +61,22 @@ To support multiple servers, just add multiple servers::
     client["test1"].add("ZING!")
     client["test2"].add("Chuck Testa!")
     client["test3"].add("Not cool, bro.")
+
+
+Using pipelining is straightforward as well::
+
+    from pybloom import BloomdClient
+
+    # Create a client to a local bloomd server, default port
+    client = BloomdClient(["localhost"])
+
+    # Get or create the foobar filter
+    pipe = client.create_filter("pipe")
+
+    # Chain multiple add commands
+    results = pipe.add("foo").add("bar").add("baz").execute()
+    assert results[0]
+    assert results[1]
+    assert results[2]
+
 
