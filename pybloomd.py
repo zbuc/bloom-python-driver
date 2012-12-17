@@ -395,3 +395,133 @@ class BloomdFilter(object):
         if resp != "Done":
             raise BloomdError("Got response: %s" % resp)
 
+    def pipeline(self):
+        "Creates a BloomdPipeline for pipelining multiple queries"
+        return BloomdPipeline(self.conn, self.name, self.hash_keys)
+
+
+class BloomdPipeline(object):
+    "Provides an interface to a single Bloomd filter"
+    def __init__(self, conn, name, hash_keys=False):
+        """
+        Creates a new BloomdPipeline object.
+
+        :Parameters:
+            - conn : The connection to use
+            - name : The name of the filter
+            - hash_keys : Should the keys be hashed client side
+        """
+        self.conn = conn
+        self.name = name
+        self.hash_keys = hash_keys
+        self.buf = []
+
+    def _get_key(self, key):
+        """
+        Returns the key we should send to the server
+        """
+        if self.hash_keys:
+            return hashlib.sha1(key).hexdigest()
+        return key
+
+    def add(self, key):
+        """
+        Adds a new key to the filter. Returns True/False if the key was added.
+        """
+        self.buf.append(("add", "s %s %s" % (self.name, self._get_key(key))))
+        return self
+
+    def bulk(self, keys):
+        "Performs a bulk set command, adds multiple keys in the filter"
+        command = ("b %s " % self.name) + " ".join([self._get_key(k) for k in keys])
+        self.buf.append(("bulk", command))
+        return self
+
+    def drop(self):
+        "Deletes the filter from the server. This is permanent"
+        self.buf.append(("drop", "drop %s" % (self.name)))
+        return self
+
+    def close(self):
+        """
+        Closes the filter on the server.
+        """
+        self.buf.append(("close", "close %s" % (self.name)))
+        return self
+
+    def clear(self):
+        """
+        Clears the filter on the server.
+        """
+        self.buf.append(("clear", "clear %s" % (self.name)))
+        return self
+
+    def check(self, key):
+        "Checks if the key is contained in the filter."
+        self.buf.append(("check", "c %s %s" % (self.name, self._get_key(key))))
+        return self
+
+    def multi(self, keys):
+        "Performs a multi command, checks for multiple keys in the filter"
+        command = ("m %s " % self.name) + " ".join([self._get_key(k) for k in keys])
+        self.buf.append(("multi", command))
+        return self
+
+    def info(self):
+        "Returns the info dictionary about the filter."
+        self.buf.append(("info", "info %s" % (self.name)))
+        return self
+
+    def flush(self):
+        "Forces the filter to flush to disk"
+        self.buf.append(("flush", "flush %s" % (self.name)))
+        return self
+
+    def execute(self):
+        """
+        Executes the pipelined commands. All commands are sent to
+        the server in the order issued, and responses are returned
+        in appropriate order.
+        """
+        # Send each command
+        buf = self.buf
+        self.buf = []
+        for name, cmd in buf:
+            self.conn.send(cmd)
+
+        # Get the responses
+        all_resp = []
+        for name, cmd in buf:
+            if name in ("bulk", "multi"):
+                resp = self.conn.read()
+                if resp.startswith("Yes") or resp.startswith("No"):
+                    all_resp.append([r == "Yes" for r in resp.split(" ")])
+                else:
+                    all_resp.append(BloomdError("Got response: %s" % resp))
+
+            elif name in ("add", "check"):
+                resp = self.conn.read()
+                if resp in ("Yes", "No"):
+                    all_resp.append(resp == "Yes")
+                else:
+                    all_resp.append(BloomdError("Got response: %s" % resp))
+
+
+            elif name in ("drop", "close", "clear", "flush"):
+                resp = self.conn.read()
+                if resp == "Done":
+                    all_resp.append(True)
+                else:
+                    all_resp.append(BloomdError("Got response: %s" % resp))
+
+            elif name == "info":
+                try:
+                    resp = self.conn.response_block_to_dict()
+                    all_resp.append(resp)
+                except BloomdError, e:
+                    all_resp.append(e)
+            else:
+                raise Exception("Unknown command! Command: %s" % name)
+
+        return all_resp
+
