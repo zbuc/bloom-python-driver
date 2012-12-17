@@ -1,3 +1,8 @@
+# 0.4.1
+
+* Added support for merging pipelines
+* SHA: 46fe6e9
+
 # 0.4.0
 
 * Added support for pipelining of commands
