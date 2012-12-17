@@ -2,7 +2,7 @@
 This module implements a client for the BloomD server.
 """
 __all__ = ["BloomdError", "BloomdConnection", "BloomdClient", "BloomdFilter"]
-__version__ = "0.4.0"
+__version__ = "0.4.1"
 import logging
 import socket
 import errno
@@ -475,6 +475,14 @@ class BloomdPipeline(object):
     def flush(self):
         "Forces the filter to flush to disk"
         self.buf.append(("flush", "flush %s" % (self.name)))
+        return self
+
+    def merge(self, pipeline):
+        """
+        Merges this pipeline with another pipeline. Commands from the
+        other pipeline are appended to the commands of this pipeline.
+        """
+        self.buf.extend(pipeline.buf)
         return self
 
     def execute(self):
