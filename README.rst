@@ -71,7 +71,7 @@ Using pipelining is straightforward as well::
     client = BloomdClient(["localhost"])
 
     # Get or create the foobar filter
-    pipe = client.create_filter("pipe")
+    pipe = client.create_filter("pipe").pipeline()
 
     # Chain multiple add commands
     results = pipe.add("foo").add("bar").add("baz").execute()
