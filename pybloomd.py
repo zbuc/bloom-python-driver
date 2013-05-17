@@ -48,6 +48,10 @@ class BloomdConnection(object):
         s.settimeout(self.timeout)
         s.connect(self.server)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+
+        # Set no delay if possible
+        if hasattr(socket, "TCP_NODELAY"):
+            s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.fh = None
         return s
 
