@@ -1,3 +1,8 @@
+# 0.4.2
+
+* Use TCP\_NODELAY when possible
+* SHA: af2fab3
+
 # 0.4.1
 
 * Added support for merging pipelines
