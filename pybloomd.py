@@ -2,7 +2,7 @@
 This module implements a client for the BloomD server.
 """
 __all__ = ["BloomdError", "BloomdConnection", "BloomdClient", "BloomdFilter"]
-__version__ = "0.4.5"
+__version__ = "0.4.6"
 import logging
 import socket
 import errno
@@ -98,6 +98,8 @@ class BloomdConnection(object):
             raise BloomdError("Did not get block start (%s)! Got '%s'!" % (start, first))
         while True:
             line = self.read()
+            if line == "":
+                raise BloomdError("Did not get block end! Got blank response.")
             if line == end:
                 break
             lines.append(line)
