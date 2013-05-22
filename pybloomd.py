@@ -2,7 +2,7 @@
 This module implements a client for the BloomD server.
 """
 __all__ = ["BloomdError", "BloomdConnection", "BloomdClient", "BloomdFilter"]
-__version__ = "0.4.2"
+__version__ = "0.4.5"
 import logging
 import socket
 import errno
@@ -261,19 +261,25 @@ class BloomdClient(object):
         conn = self._get_connection(name)
         return BloomdFilter(conn, name, self.hash_keys)
 
-    def list_filters(self, inc_server=False):
+    def list_filters(self, prefix=None, inc_server=False):
         """
         Lists all the available filters across all servers.
         Returns a dictionary of {filter_name : filter_info}.
 
         :Parameters:
+            - prefix (optional) : If provided, only list matching the prefix
             - inc_server (optional) : If true, the dictionary values
                will be (server, filter_info) instead of filter_info.
         """
+        if prefix:
+            cmd = "list %s" % prefix
+        else:
+            cmd = "list"
+
         # Send the list to all first
         for server in self.servers:
             conn = self._server_connection(server)
-            conn.send("list")
+            conn.send(cmd)
 
         # Check response from all
         responses = {}
