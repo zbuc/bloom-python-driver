@@ -9,6 +9,9 @@ import errno
 import time
 import hashlib
 
+# Check for TCP_NODELAY support
+HAS_TCP_NODELAY = hasattr(socket, "TCP_NODELAY")
+
 
 class BloomdError(Exception):
     "Root of exceptions from the client library"
@@ -50,7 +53,7 @@ class BloomdConnection(object):
         s.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
 
         # Set no delay if possible
-        if hasattr(socket, "TCP_NODELAY"):
+        if HAS_TCP_NODELAY:
             s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.fh = None
         return s
@@ -65,7 +68,7 @@ class BloomdConnection(object):
                 self.sock.sendall(cmd + "\n")
                 sent = True
                 break
-            except socket.error, e:
+            except socket.error as e:
                 self.logger.exception("Failed to send command to bloomd server! Attempt: %d" % attempt)
                 if e[0] in (errno.ECONNRESET, errno.ECONNREFUSED, errno.EAGAIN, errno.EHOSTUNREACH, errno.EPIPE):
                     self.sock = self._create_socket()
@@ -115,7 +118,7 @@ class BloomdConnection(object):
             try:
                 self.send(cmd)
                 return self.read()
-            except socket.error, e:
+            except socket.error as e:
                 self.logger.exception("Failed to send command to bloomd server! Attempt: %d" % attempt)
                 if e[0] in (errno.ECONNRESET, errno.ECONNREFUSED, errno.EAGAIN, errno.EHOSTUNREACH, errno.EPIPE):
                     self.sock = self._create_socket()
@@ -349,7 +352,7 @@ class BloomdFilter(object):
         command = ("b %s " % self.name) + " ".join([self._get_key(k) for k in keys])
         resp = self.conn.send_and_receive(command)
 
-        if resp.startswith("Yes") or resp.startswith("No"):
+        if resp[:3] == "Yes" or resp[:2] == "No":
             return [r == "Yes" for r in resp.split(" ")]
         raise BloomdError("Got response: %s" % resp)
 
@@ -387,7 +390,7 @@ class BloomdFilter(object):
         command = ("m %s " % self.name) + " ".join([self._get_key(k) for k in keys])
         resp = self.conn.send_and_receive(command)
 
-        if resp.startswith("Yes") or resp.startswith("No"):
+        if resp[:3] == "Yes" or resp[:2] == "No":
             return [r == "Yes" for r in resp.split(" ")]
         raise BloomdError("Got response: %s" % resp)
 
@@ -514,7 +517,7 @@ class BloomdPipeline(object):
         for name, cmd in buf:
             if name in ("bulk", "multi"):
                 resp = self.conn.read()
-                if resp.startswith("Yes") or resp.startswith("No"):
+                if resp[:3] == "Yes" or resp[:2] == "No":
                     all_resp.append([r == "Yes" for r in resp.split(" ")])
                 else:
                     all_resp.append(BloomdError("Got response: %s" % resp))
@@ -525,7 +528,6 @@ class BloomdPipeline(object):
                     all_resp.append(resp == "Yes")
                 else:
                     all_resp.append(BloomdError("Got response: %s" % resp))
-
 
             elif name in ("drop", "close", "clear", "flush"):
                 resp = self.conn.read()
@@ -538,10 +540,9 @@ class BloomdPipeline(object):
                 try:
                     resp = self.conn.response_block_to_dict()
                     all_resp.append(resp)
-                except BloomdError, e:
+                except BloomdError as e:
                     all_resp.append(e)
             else:
                 raise Exception("Unknown command! Command: %s" % name)
 
         return all_resp
-
