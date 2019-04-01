@@ -63,7 +63,7 @@ class BloomdConnection(object):
         if self.sock is None:
             self.sock = self._create_socket()
         sent = False
-        for attempt in xrange(self.attempts):
+        for attempt in range(self.attempts):
             try:
                 self.sock.sendall(cmd + "\n")
                 sent = True
@@ -114,7 +114,7 @@ class BloomdConnection(object):
         and reads the response, performing a retry if necessary.
         """
         done = False
-        for attempt in xrange(self.attempts):
+        for attempt in range(self.attempts):
             try:
                 self.send(cmd)
                 return self.read()
@@ -216,10 +216,10 @@ class BloomdClient(object):
         counts = {}
         for server in self.servers:
             counts[server] = 0
-        for filter, (server, info) in self.server_info.items():
+        for filter, (server, info) in list(self.server_info.items()):
             counts[server] += 1
 
-        counts = [(count, srv) for srv, count in counts.items()]
+        counts = [(count, srv) for srv, count in list(counts.items())]
         counts.sort()
 
         # Select the least used
